@@ -1,5 +1,6 @@
-import { Injectable, signal } from '@angular/core';
-import { GoogleGenAI, Type, Chat } from '@google/genai';
+import { Injectable, signal, inject } from '@angular/core';
+import { GoogleGenAI, Type, Chat, HarmCategory, HarmBlockThreshold, ThinkingLevel } from '@google/genai';
+import { ApiConfigService } from './api-config.service';
 
 export interface GameOption {
   label: string; // The text on the button (e.g., "Nod")
@@ -27,16 +28,20 @@ export interface GameConfig {
   providedIn: 'root'
 })
 export class GeminiService {
-  private ai: GoogleGenAI;
+  private apiConfigService = inject(ApiConfigService);
+  private ai!: GoogleGenAI;
   private chatSession: Chat | null = null;
 
   isLoading = signal<boolean>(false);
   sceneHistory = signal<GameScene[]>([]);
   error = signal<string | null>(null);
 
-  constructor() {
-    const apiKey = process.env['API_KEY'] || '';
-    this.ai = new GoogleGenAI({ apiKey });
+  private get apiKey(): string {
+    return this.apiConfigService.getProviderConfig('gemini').apiKey;
+  }
+
+  private initAI() {
+    this.ai = new GoogleGenAI({ apiKey: this.apiKey });
   }
 
   async generateWorldSetting(theme: string, simpleSetting: string, style: string): Promise<string> {
@@ -49,8 +54,33 @@ export class GeminiService {
 要求：简体中文，有画面感，交代背景/氛围/潜在冲突。直接输出设定内容，禁止任何元描述。`;
 
     try {
+      this.initAI();
       const response = await this.ai.models.generateContent({
         model: 'gemini-3-flash-preview',
+        config: {
+          thinkingConfig: {
+            includeThoughts: false, // Optional: set to true if you want to see thoughts
+            thinkingLevel: ThinkingLevel.MEDIUM
+          },
+          safetySettings: [
+            {
+              category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+              threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            }
+          ]
+        },
         contents: prompt,
       });
       return response.text || "无法生成设定，请重试。";
@@ -93,6 +123,7 @@ export class GeminiService {
 生成开场。`;
 
     try {
+      this.initAI();
       this.chatSession = this.ai.chats.create({
         model: 'gemini-3-flash-preview',
         config: {
@@ -110,7 +141,7 @@ export class GeminiService {
                   type: Type.OBJECT,
                   properties: {
                     label: { type: Type.STRING, description: "Short button text" },
-                    action: { type: Type.STRING, description: "Expanded action starting with '我...'. MUST include spoken quotes (e.g. '我说道："..."') if responding verbally." }
+                    action: { type: Type.STRING, description: "Expanded action starting with '我...'. MUST include spoken quotes (e.g. '我说道：“...”') if responding verbally." }
                   },
                   required: ['label', 'action']
                 },
@@ -121,7 +152,29 @@ export class GeminiService {
               backgroundMood: { type: Type.STRING }
             },
             required: ['narrative', 'options', 'isGameOver']
-          }
+          },
+          thinkingConfig: {
+            includeThoughts: false,
+            thinkingLevel: ThinkingLevel.MEDIUM
+          },
+          safetySettings: [
+            {
+              category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+              threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            }
+          ]
         }
       });
 

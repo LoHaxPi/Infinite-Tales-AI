@@ -1,4 +1,4 @@
-import { Component, input, output, signal, computed, effect, ElementRef, ViewChild } from '@angular/core';
+import { Component, input, output, signal, computed, effect, ElementRef, ViewChild, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { GameScene, GameOption } from '../services/gemini.service';
@@ -8,132 +8,133 @@ import { GameScene, GameOption } from '../services/gemini.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="h-full flex flex-col max-w-4xl mx-auto relative">
+    <div class="h-full w-full flex flex-col relative overflow-hidden bg-gray-950 text-gray-200 font-sans">
       
-      <!-- Background Mood/Ambience -->
+      <!-- Ambient Background -->
       <div class="absolute inset-0 pointer-events-none opacity-20 transition-colors duration-1000 z-0"
            [style.background]="moodGradient()"></div>
 
       <!-- Header -->
-      <header class="flex-none p-4 flex justify-between items-center z-10 border-b border-white/5 bg-gray-950/80 backdrop-blur-sm">
-        <h2 class="text-sm font-bold tracking-widest text-gray-400 uppercase">互动故事</h2>
-        <button (click)="onQuit()" class="text-xs text-red-400 hover:text-red-300 transition-colors">结束游戏</button>
+      <header class="flex-none flex items-center justify-between border-b border-white/5 px-6 py-4 bg-gray-950/80 backdrop-blur-md z-40">
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+          <h1 class="text-xs font-medium tracking-[0.2em] uppercase text-gray-400">Infinite Tales</h1>
+        </div>
+        <button (click)="onQuit()" class="text-xs text-gray-500 hover:text-red-400 transition-colors tracking-widest uppercase">
+          End Session
+        </button>
       </header>
 
-      <!-- Main Content Area (Scrollable History) -->
-      <main #scrollContainer class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 z-10 scroll-smooth overscroll-contain">
-        
-        @for (sceneItem of history(); track $index; let isLast = $last) {
-          <div class="scene-item space-y-6 fade-in scroll-mt-24">
+      <!-- Main History Area -->
+      <main #scrollContainer class="flex-1 overflow-y-auto p-6 scroll-smooth z-10 custom-scrollbar pb-32">
+        <div class="max-w-3xl mx-auto flex flex-col gap-10">
+          
+          @for (sceneItem of history(); track $index; let isLast = $last) {
             
-            <!-- Narrative Text -->
-            <div class="prose prose-invert prose-lg max-w-none">
-              <p class="leading-relaxed text-gray-200 text-lg md:text-xl font-light">
-                {{ sceneItem.narrative }}
-              </p>
+            <!-- Narrative / AI Output -->
+            <div class="flex flex-col gap-2 fade-in">
+              <span class="text-[10px] uppercase tracking-[0.3em] font-bold text-indigo-400/60 ml-1">
+                {{ sceneItem.speakerName || 'The Universe' }}
+              </span>
+              <div class="bg-gray-900/60 border border-white/5 rounded-2xl p-6 shadow-xl backdrop-blur-md">
+                <p class="text-lg md:text-xl font-light leading-relaxed text-gray-200">
+                  {{ sceneItem.narrative }}
+                </p>
+                @if (sceneItem.dialogue) {
+                  <p class="mt-4 text-indigo-200 italic border-l-2 border-indigo-500 pl-4 py-1">
+                    "{{ sceneItem.dialogue }}"
+                  </p>
+                }
+              </div>
             </div>
 
-            <!-- Character Dialogue Box -->
-            @if (sceneItem.dialogue) {
-              <div class="flex flex-col items-start gap-2 max-w-2xl mr-auto">
-                 @if (sceneItem.speakerName) {
-                   <span class="px-3 py-1 bg-indigo-500/20 text-indigo-300 text-xs font-bold rounded-full border border-indigo-500/30 uppercase tracking-wider">
-                     {{ sceneItem.speakerName }}
-                   </span>
-                 }
-                 <div class="relative bg-gray-800/80 border-l-4 border-indigo-500 p-6 rounded-r-xl rounded-bl-xl shadow-lg w-full">
-                   <!-- Removed manual quotes around sceneItem.dialogue -->
-                   <p class="text-white italic">{{ sceneItem.dialogue }}</p>
-                 </div>
-              </div>
-            }
-
-            <!-- User Choice Record (Bubble Style) -->
+            <!-- User Choice Record (If made) -->
             @if (sceneItem.userChoice) {
-              <div class="flex justify-end pl-12">
-                <div class="bg-indigo-600/90 text-white px-6 py-4 rounded-2xl rounded-tr-none shadow-lg max-w-xl backdrop-blur-sm border border-indigo-500/30">
-                  <p class="text-base md:text-lg font-light leading-relaxed">{{ sceneItem.userChoice }}</p>
+              <div class="flex flex-col gap-2 items-end fade-in">
+                <span class="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-500 mr-1">You</span>
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-5 max-w-[90%] md:max-w-[80%] text-right">
+                  <p class="text-base font-light text-gray-300">
+                    {{ sceneItem.userChoice }}
+                  </p>
                 </div>
               </div>
             }
 
-            <!-- Game Over -->
+            <!-- Game Over State -->
             @if (isLast && sceneItem.isGameOver) {
-              <div class="py-12 text-center space-y-4 animate-in zoom-in duration-700">
-                <h3 class="text-4xl font-black text-white tracking-widest uppercase">剧终</h3>
-                <div class="h-1 w-20 bg-red-500 mx-auto rounded-full"></div>
-                <button (click)="onQuit()" class="mt-8 px-8 py-3 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-                  重新开始
-                </button>
-              </div>
+               <div class="py-12 text-center space-y-4 animate-in zoom-in duration-700">
+                 <h3 class="text-3xl font-thin text-white tracking-[0.5em] uppercase">Fate Sealed</h3>
+                 <button (click)="onQuit()" class="mt-8 px-6 py-2 border border-white/20 hover:bg-white/10 rounded-full text-sm text-gray-300 transition-all">
+                   Begin Anew
+                 </button>
+               </div>
             }
-          </div>
-        }
-        
-        <div class="h-16 md:h-24"></div>
+          }
+           <!-- Spacer for footer -->
+           <div class="h-32"></div>
+        </div>
       </main>
 
-      <!-- Footer Controls -->
-      <footer class="flex-none p-4 md:p-6 bg-gray-950/90 border-t border-white/10 z-20 backdrop-blur-xl">
-        
-        @if (loading()) {
-          <div class="flex flex-col items-center justify-center py-8 space-y-4">
-            <div class="flex gap-1">
-              <div class="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style="animation-delay: 0s"></div>
-              <div class="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-              <div class="w-3 h-3 bg-pink-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-            </div>
-            <p class="text-xs text-gray-500 animate-pulse">命运编织中...</p>
-          </div>
-        } @else if (activeScene() && !activeScene()?.isGameOver) {
-          <div class="space-y-4 max-w-3xl mx-auto">
+      <!-- Fixed Footer Interaction Area -->
+      @if (loading()) {
+        <div class="fixed bottom-0 left-0 w-full z-50 p-6 bg-gradient-to-t from-gray-950 via-gray-950 to-transparent">
+           <div class="max-w-3xl mx-auto text-center">
+             <span class="text-xs text-indigo-400/50 animate-pulse tracking-widest">WEAVING DESTINY...</span>
+           </div>
+        </div>
+      } @else if (activeScene() && !activeScene()?.isGameOver) {
+        <div class="fixed bottom-0 left-0 w-full z-50 pt-20 pb-8 px-6 bg-gradient-to-t from-gray-950 via-gray-950 to-transparent pointer-events-none">
+          <div class="max-w-2xl mx-auto space-y-3 pointer-events-auto">
             
-            <!-- AI Options -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-              @for (opt of activeScene()?.options; track $index) {
-                <button 
-                  (click)="handleChoice(opt)"
-                  class="text-left p-4 rounded-xl bg-gray-800/50 hover:bg-indigo-600/20 border border-gray-700 hover:border-indigo-500/50 text-sm text-gray-200 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 group h-full flex items-center"
-                >
-                  <!-- Display Label (Short) -->
-                  <span class="group-hover:text-white transition-colors font-medium">
+            <!-- Choices List -->
+            @for (opt of activeScene()?.options; track $index) {
+              <button 
+                (click)="handleChoice(opt)"
+                class="group flex w-full items-center justify-between p-4 rounded-xl border border-white/10 bg-gray-900/90 hover:bg-gray-800 hover:border-indigo-500/30 transition-all duration-200 backdrop-blur-xl shadow-lg"
+              >
+                <div class="flex items-center gap-5">
+                  <span class="text-[10px] font-mono font-bold text-gray-600 group-hover:text-indigo-400 transition-colors border border-gray-700/50 rounded px-1.5 py-0.5">
+                    {{ $index + 1 }}
+                  </span>
+                  <span class="text-sm md:text-base font-medium tracking-wide text-gray-300 group-hover:text-white text-left">
                     {{ opt.label }}
                   </span>
-                </button>
-              }
-            </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </button>
+            }
 
             <!-- Custom Input -->
-            <div class="relative group">
+            <div class="pt-2 flex items-center gap-3">
               <input 
                 type="text" 
                 [(ngModel)]="customAction" 
                 (keydown.enter)="handleCustomAction()"
-                placeholder="或者输入你的行动..." 
-                class="w-full bg-gray-900 border border-gray-700 rounded-full px-6 py-3 pr-12 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner"
+                placeholder="Make your own path..." 
+                class="flex-1 h-11 bg-white/5 border border-white/10 rounded-full px-6 text-sm text-gray-200 focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50 focus:bg-white/10 transition-all placeholder:text-gray-600 focus:outline-none"
               />
               <button 
                 (click)="handleCustomAction()"
                 [disabled]="!customAction()"
-                class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-white disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
+                class="flex size-11 items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-500 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
               </button>
             </div>
 
           </div>
-        }
+        </div>
+      }
 
-      </footer>
     </div>
   `
 })
 export class GameViewComponent {
   history = input<GameScene[]>([]);
   loading = input<boolean>(false);
-  
+
   choiceMade = output<string>(); // Emits a simple string for compatibility
-  choiceMadeStructured = output<{label: string, action: string}>(); // Emits structured data to parent
+  choiceMadeStructured = output<{ label: string, action: string }>(); // Emits structured data to parent
 
   quitGame = output<void>();
   customAction = signal('');
@@ -173,9 +174,9 @@ export class GameViewComponent {
     const txt = this.customAction().trim();
     if (txt) {
       // For custom input, label and action are the same (or we could prefix '试图...')
-      this.choiceMadeStructured.emit({ 
-        label: txt, 
-        action: `我决定：${txt}` 
+      this.choiceMadeStructured.emit({
+        label: txt,
+        action: `我决定：${txt}`
       });
       this.customAction.set('');
     }
@@ -183,5 +184,26 @@ export class GameViewComponent {
 
   onQuit() {
     this.quitGame.emit();
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyboardEvent(event: KeyboardEvent) {
+    if (this.loading()) return;
+
+    // Ignore if typing in an input
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    const key = event.key;
+    const num = parseInt(key);
+
+    // Handle 1-9 for choices
+    if (!isNaN(num) && num >= 1 && num <= 9) {
+      const scene = this.activeScene();
+      if (scene && scene.options && scene.options.length >= num) {
+        this.handleChoice(scene.options[num - 1]);
+      }
+    }
   }
 }
