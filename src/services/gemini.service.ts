@@ -12,7 +12,7 @@ export interface GameScene {
   dialogue?: string;
   options: GameOption[]; // Updated to allow structured options
   isGameOver: boolean;
-  backgroundMood?: string; 
+  backgroundMood?: string;
   userChoice?: string; // Stores the expanded 'action' text
 }
 
@@ -40,21 +40,13 @@ export class GeminiService {
   }
 
   async generateWorldSetting(theme: string, simpleSetting: string, style: string): Promise<string> {
-    const prompt = `
-      任务：根据用户提供的简短概念，扩写一个引人入胜的互动小说世界观设定。
-      
-      输入信息：
-      - 主题：${theme}
-      - 风格：${style}
-      - 初始概念：${simpleSetting || '未指定，请自由发挥'}
+    const prompt = `根据以下信息扩写一个互动小说世界观（100-200字）：
 
-      要求：
-      1. 使用简体中文。
-      2. 长度在 100-200 字之间。
-      3. 描述要有画面感，交代背景、氛围和潜在的冲突。
-      4. 不要包含游戏机制说明，只描述世界设定。
-      5. 直接输出设定内容，不要加“好的，这是设定”之类的废话。
-    `;
+主题：${theme}
+风格：${style}
+初始概念：${simpleSetting || '自由发挥'}
+
+要求：简体中文，有画面感，交代背景/氛围/潜在冲突。直接输出设定内容，禁止任何元描述。`;
 
     try {
       const response = await this.ai.models.generateContent({
@@ -71,42 +63,34 @@ export class GeminiService {
   async startGame(config: GameConfig) {
     this.isLoading.set(true);
     this.error.set(null);
-    this.sceneHistory.set([]); 
+    this.sceneHistory.set([]);
 
-    const systemPrompt = `
-      你是一个高级互动小说引擎。你是游戏主持人(Game Master)。
-      
-      用户提供的世界配置:
-      - 主题: ${config.theme}
-      - 设定: ${config.setting}
-      - 主角: ${config.protagonist}
-      - 风格: ${config.style}
-      
-      注意：如果“主题”或“风格”标记为 AI Generated 或 Adaptive，请完全根据“设定”中的描述自行推断并应用最合适的风格。
+    const systemPrompt = `# 角色
+你是互动小说引擎/游戏主持人(GM)。
 
-      【核心规则】:
-      1. **输出格式**：严格输出 JSON。
-      2. **人称视角**：叙述(narrative)使用**第二人称“你”**。玩家动作(action)必须使用**第一人称“我”**。
-      3. **语言**：简体中文。
-      4. **NPC认知限制（重要）**：除非主角主动自我介绍，否则**任何NPC都绝对不知道主角的名字**。即使NPC知道主角是“新来的”，也只能称呼为“陌生人”、“新来的”或“你”。
-      
-      【JSON字段规范】：
-      - narrative: 纯粹的环境描写、动作发生和剧情推进。**不要包含NPC说话的具体内容**（说话内容放dialogue）。
-      - speakerName: 说话者的名字（如“守卫”、“神秘老者”）。
-      - dialogue: **【重要规则】仅包含说话的纯文本内容。**
-         - ❌ 错误: "他低声说道：“快走！”" (包含了动作描写和引号)
-         - ❌ 错误: "“快走！”" (包含了引号)
-         - ✅ 正确: 快走！ (只包含口语文字)
-      - options: 3个选项。
-         - label: 按钮简短文本（如“拔剑”）。
-         - action: 扩写后的动作描述。**必须使用“我”开头**。如果涉及说话，必须包含带双引号的台词（例如：我大喊：“住手！”）。
+# 世界配置
+- 主题: ${config.theme}
+- 设定: ${config.setting}
+- 主角: ${config.protagonist}
+- 风格: ${config.style}${config.theme.includes('AI') || config.style.includes('Adaptive') ? '\n（风格标记为AI/Adaptive时，根据设定自行推断最合适的风格）' : ''}
 
-      【开场逻辑】：
-      - 模式A (新访客)：主角刚抵达某地。NPC会上前引导，但**不知道主角名字**。
-      - 模式B (苏醒/穿越)：主角突然醒来/穿越。周围人对主角感到陌生或困惑，**不知道主角名字/身份**。
+# 核心规则
+1. 语言：简体中文
+2. 视角：narrative用第二人称"你"，action用第一人称"我"
+3. NPC认知限制：主角未自我介绍前，NPC绝不知道主角名字，只能称"陌生人/新来的/你"
 
-      请生成开场。
-    `;
+# JSON字段规范
+- narrative: 环境描写与剧情推进（不含对话内容）
+- speakerName: 说话者名字
+- dialogue: 纯口语文字（❌ 禁止引号/动作描写，✅ 只要说的话本身）
+- options[3]: { label: 简短按钮文本, action: "我..."开头的动作描述，说话时包含带引号的台词 }
+- backgroundMood: 场景氛围关键词
+
+# 开场模式
+- 新访客型：主角刚抵达，NPC引导但不知其名
+- 苏醒/穿越型：主角突然出现，周围人感到陌生
+
+生成开场。`;
 
     try {
       this.chatSession = this.ai.chats.create({
@@ -122,11 +106,11 @@ export class GeminiService {
               dialogue: { type: Type.STRING, nullable: true, description: "ONLY the spoken words. NO quotes, NO 'he said'." },
               options: {
                 type: Type.ARRAY,
-                items: { 
+                items: {
                   type: Type.OBJECT,
                   properties: {
                     label: { type: Type.STRING, description: "Short button text" },
-                    action: { type: Type.STRING, description: "Expanded action starting with '我...'. MUST include spoken quotes (e.g. '我说道：“...”') if responding verbally." }
+                    action: { type: Type.STRING, description: "Expanded action starting with '我...'. MUST include spoken quotes (e.g. '我说道："..."') if responding verbally." }
                   },
                   required: ['label', 'action']
                 },
@@ -143,9 +127,9 @@ export class GeminiService {
 
       const result = await this.chatSession.sendMessage({ message: "开始游戏" });
       const text = result.text;
-      
+
       if (!text) throw new Error("No response from AI");
-      
+
       const scene = JSON.parse(text) as GameScene;
       this.sceneHistory.set([scene]);
 
@@ -174,12 +158,12 @@ export class GeminiService {
     this.error.set(null);
 
     try {
-      // Send both the label and the expanded action to the AI for context
-      const message = `玩家选择: [${optionData.label}]。详细动作描述: "${optionData.action}"。请根据此动作推进剧情。`;
+      // Send concise action to AI - no need for verbose instruction
+      const message = `[${optionData.label}] ${optionData.action}`;
 
       const result = await this.chatSession.sendMessage({ message });
       const text = result.text;
-      
+
       if (!text) throw new Error("No response from AI");
 
       const nextScene = JSON.parse(text) as GameScene;
