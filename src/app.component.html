@@ -1,0 +1,31 @@
+<div class="h-full w-full bg-[#050505] text-gray-100 font-sans antialiased overflow-hidden selection:bg-indigo-500 selection:text-white relative">
+  
+  <!-- Ambient Background Effects (Restored Clean Style) -->
+  <div class="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-indigo-900/20 rounded-full blur-[120px] pointer-events-none z-0"></div>
+  <div class="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[100px] pointer-events-none z-0"></div>
+
+  <!-- Error Toast -->
+  @if (error()) {
+    <div class="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 animate-bounce">
+      <div class="bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+        <span class="text-sm font-medium">{{ error() }}</span>
+      </div>
+    </div>
+  }
+
+  <!-- View Switcher -->
+  @if (!gameStarted) {
+    <div class="relative z-10 h-full flex flex-col items-center justify-center p-4">
+      <app-setup-view (startGame)="onStartGame($event)" class="w-full max-w-2xl"></app-setup-view>
+    </div>
+  } @else {
+    <app-game-view 
+      class="relative z-10 block h-full"
+      [history]="sceneHistory()" 
+      [loading]="isLoading()"
+      (choiceMadeStructured)="onPlayerAction($event)"
+      (quitGame)="onQuit()"
+    ></app-game-view>
+  }
+</div>

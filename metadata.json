@@ -1,0 +1,5 @@
+{
+  "name": "Infinite Tales AI",
+  "description": "An interactive text adventure engine powered by Gemini. Create your own world and play through endless, dynamically generated stories.",
+  "requestFramePermissions": []
+}
