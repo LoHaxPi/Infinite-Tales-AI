@@ -49,11 +49,6 @@
 .\start.ps1
 ```
 
-**Windows (CMD):**
-```cmd
-start.bat
-```
-
 **Linux / macOS:**
 ```bash
 chmod +x start.sh
