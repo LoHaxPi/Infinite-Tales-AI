@@ -28,11 +28,12 @@
   <!-- View Switcher -->
   @if (!gameStarted) {
   <div class="relative z-10 h-full flex flex-col items-center justify-center p-4">
-    <app-setup-view (startGame)="onStartGame($event)"
+    <app-setup-view (startGame)="onStartGame($event)" (loadGame)="onLoadGame($event)"
       class="w-full max-w-2xl lg:max-w-4xl transition-all duration-500 ease-out"></app-setup-view>
   </div>
   } @else {
   <app-game-view class="relative z-10 block h-full" [history]="sceneHistory()" [loading]="isLoading()"
-    (choiceMadeStructured)="onPlayerAction($event)" (quitGame)="onQuit()"></app-game-view>
+    (choiceMadeStructured)="onPlayerAction($event)" (saveGame)="onSaveGame()" (overwriteGame)="onOverwriteGame($event)"
+    (loadGame)="onLoadGame($event)" (quitGame)="onQuit()"></app-game-view>
   }
 </div>

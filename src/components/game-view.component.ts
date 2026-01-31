@@ -1,12 +1,15 @@
-import { Component, input, output, signal, computed, effect, ElementRef, ViewChild, HostListener } from '@angular/core';
+import { Component, input, output, signal, computed, effect, ElementRef, ViewChild, HostListener, inject, AfterViewChecked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { GameScene, GameOption } from '../services/gemini.service';
+import { PersistenceService } from '../services/persistence.service';
+import { SaveSlotMeta } from '../models/save-data.model';
+import { SaveLoadModalComponent } from './save-load-modal.component';
 
 @Component({
   selector: 'app-game-view',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SaveLoadModalComponent],
   template: `
     <div class="h-full w-full flex flex-col relative overflow-hidden bg-gray-950 text-gray-200 font-sans">
       
@@ -20,60 +23,90 @@ import { GameScene, GameOption } from '../services/gemini.service';
           <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
           <h1 class="text-xs font-medium tracking-[0.2em] uppercase text-gray-400">Infinite Tales</h1>
         </div>
-        <button (click)="onQuit()" class="text-xs text-gray-500 hover:text-red-400 transition-colors tracking-widest uppercase">
-          End Session
-        </button>
+        <div class="flex items-center gap-4">
+          <button (click)="onSave()" class="text-xs text-gray-500 hover:text-indigo-400 transition-colors tracking-widest uppercase flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            保存
+          </button>
+          <button (click)="showLoadModal.set(true)" class="text-xs text-gray-500 hover:text-indigo-400 transition-colors tracking-widest uppercase flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            读档
+          </button>
+          <button (click)="onQuit()" class="text-xs text-gray-500 hover:text-red-400 transition-colors tracking-widest uppercase">
+            结束
+          </button>
+        </div>
       </header>
 
       <!-- Main History Area -->
-      <main #scrollContainer class="flex-1 overflow-y-auto p-6 scroll-smooth z-10 custom-scrollbar pb-32">
+      <!-- Removed scroll-smooth class to avoid conflict with JS scrollTo -->
+      <main #scrollContainer 
+        (scroll)="checkScrollPosition()"
+        class="flex-1 overflow-y-auto p-6 z-10 custom-scrollbar pb-32">
         <div class="max-w-3xl mx-auto flex flex-col gap-10">
           
           @for (sceneItem of history(); track $index; let isLast = $last) {
             
-            <!-- Narrative / AI Output -->
-            <div class="flex flex-col gap-2 fade-in">
-              <span class="text-[10px] uppercase tracking-[0.3em] font-bold text-indigo-400/60 ml-1">
-                {{ sceneItem.speakerName || 'The Universe' }}
-              </span>
-              <div class="bg-gray-900/60 border border-white/5 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-                <p class="text-lg md:text-xl font-light leading-relaxed text-gray-200">
-                  {{ sceneItem.narrative }}
-                </p>
-                @if (sceneItem.dialogue) {
-                  <p class="mt-4 text-indigo-200 italic border-l-2 border-indigo-500 pl-4 py-1">
-                    "{{ sceneItem.dialogue }}"
-                  </p>
-                }
-              </div>
-            </div>
+            <div class="scene-item flex flex-col gap-10">
+              <!-- Narrative / AI Output -->
+              <div class="flex flex-col gap-2 fade-in">
 
-            <!-- User Choice Record (If made) -->
-            @if (sceneItem.userChoice) {
-              <div class="flex flex-col gap-2 items-end fade-in">
-                <span class="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-500 mr-1">You</span>
-                <div class="bg-white/5 border border-white/10 rounded-2xl p-5 max-w-[90%] md:max-w-[80%] text-right">
-                  <p class="text-base font-light text-gray-300">
-                    {{ sceneItem.userChoice }}
+                <div class="bg-gray-900/60 border border-white/5 rounded-2xl p-6 shadow-xl backdrop-blur-md">
+                  <p class="text-lg md:text-xl font-light leading-relaxed text-gray-200">
+                    {{ sceneItem.narrative }}
                   </p>
+                  @if (sceneItem.dialogue) {
+                    <span class="text-[10px] uppercase tracking-[0.3em] font-bold text-indigo-400/60 ml-1 block mt-4">
+                      {{ sceneItem.speakerName || 'The Universe' }}
+                    </span>
+                    <p class="text-indigo-200 italic border-l-2 border-indigo-500 pl-4 py-1">
+                      "{{ sceneItem.dialogue }}"
+                    </p>
+                  }
                 </div>
               </div>
-            }
 
-            <!-- Game Over State -->
-            @if (isLast && sceneItem.isGameOver) {
-               <div class="py-12 text-center space-y-4 animate-in zoom-in duration-700">
-                 <h3 class="text-3xl font-thin text-white tracking-[0.5em] uppercase">Fate Sealed</h3>
-                 <button (click)="onQuit()" class="mt-8 px-6 py-2 border border-white/20 hover:bg-white/10 rounded-full text-sm text-gray-300 transition-all">
-                   Begin Anew
-                 </button>
-               </div>
-            }
+              <!-- User Choice Record (If made) -->
+              @if (sceneItem.userChoice) {
+                <div class="flex flex-col gap-2 items-end fade-in">
+                  <div class="bg-white/5 border border-white/10 rounded-2xl p-5 max-w-[90%] md:max-w-[80%] text-right">
+                    <p class="text-base font-light text-gray-300">
+                      {{ extractNarrative(sceneItem.userChoice) }}
+                    </p>
+                    @if (extractDialogue(sceneItem.userChoice)) {
+                      <p class="text-pink-200 italic border-r-2 border-pink-500 pr-4 py-1 mt-4 text-right">
+                        "{{ extractDialogue(sceneItem.userChoice) }}"
+                      </p>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- Game Over State -->
+              @if (isLast && sceneItem.isGameOver) {
+                 <div class="py-12 text-center space-y-4 animate-in zoom-in duration-700">
+                   <h3 class="text-3xl font-thin text-white tracking-[0.5em] uppercase">Fate Sealed</h3>
+                   <button (click)="onQuit()" class="mt-8 px-6 py-2 border border-white/20 hover:bg-white/10 rounded-full text-sm text-gray-300 transition-all">
+                     Begin Anew
+                   </button>
+                 </div>
+              }
+            </div>
           }
            <!-- Spacer for footer -->
            <div class="h-32"></div>
         </div>
       </main>
+
+      <!-- Scroll to Bottom Button -->
+      <!-- Only show if history has length and we are not near bottom -->
+      @if (showScrollButton()) {
+        <button 
+          (click)="scrollToBottom(true)"
+          class="fixed bottom-24 right-8 z-40 p-3 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-full shadow-lg backdrop-blur transition-all duration-300 animate-in fade-in slide-in-from-bottom-4 group border border-indigo-400/30 cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-y-0.5 transition-transform"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        </button>
+      }
 
       <!-- Fixed Footer Interaction Area -->
       @if (loading()) {
@@ -126,8 +159,18 @@ import { GameScene, GameOption } from '../services/gemini.service';
         </div>
       }
 
+      <!-- Save Modal -->
+      @if (showSaveModal()) {
+        <app-save-load-modal mode="save" (close)="showSaveModal.set(false)" (save)="onSaveConfirm()" (overwrite)="onOverwriteConfirm($event)"></app-save-load-modal>
+      }
+
+      <!-- Load Modal -->
+      @if (showLoadModal()) {
+        <app-save-load-modal mode="load" (close)="showLoadModal.set(false)" (load)="onLoad($event)"></app-save-load-modal>
+      }
+
     </div>
-  `
+  `,
 })
 export class GameViewComponent {
   history = input<GameScene[]>([]);
@@ -137,7 +180,18 @@ export class GameViewComponent {
   choiceMadeStructured = output<{ label: string, action: string }>(); // Emits structured data to parent
 
   quitGame = output<void>();
+  saveGame = output<void>();
+  loadGame = output<string>();
+  overwriteGame = output<string>();
+
+  persistenceService = inject(PersistenceService);
+  showLoadModal = signal(false);
+  showSaveModal = signal(false);
   customAction = signal('');
+  showScrollButton = signal(false);
+
+  // Track if we should auto-scroll
+  private isNearBottom = true;
 
   activeScene = computed(() => {
     const h = this.history();
@@ -148,16 +202,49 @@ export class GameViewComponent {
 
   constructor() {
     effect(() => {
+      // Trigger when history changes
       const len = this.history().length;
+
+      // We use a timeout to let the DOM update first
       setTimeout(() => {
-        if (!this.scrollContainer?.nativeElement) return;
-        const container = this.scrollContainer.nativeElement as HTMLElement;
-        const sceneItems = container.querySelectorAll('.scene-item');
-        if (sceneItems.length > 0) {
-          sceneItems[sceneItems.length - 1].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Only scroll if we were near bottom logic says so
+        if (this.isNearBottom) {
+          this.scrollToBottom(false);
         }
-      }, 150);
+      }, 100);
     });
+  }
+
+  checkScrollPosition() {
+    if (!this.scrollContainer?.nativeElement) return;
+    const element = this.scrollContainer.nativeElement as HTMLElement;
+
+    // Calculate distance from bottom
+    const threshold = 150; // pixels from bottom to consider "near"
+    const position = element.scrollTop + element.clientHeight;
+    const height = element.scrollHeight;
+
+    // Check if we are near bottom
+    // We allow a small error margin for float calculation diffs
+    this.isNearBottom = position >= height - threshold;
+
+    // Show button if NOT near bottom
+    this.showScrollButton.set(!this.isNearBottom && this.history().length > 1);
+  }
+
+  scrollToBottom(smooth: boolean = true) {
+    if (!this.scrollContainer?.nativeElement) return;
+    const element = this.scrollContainer.nativeElement as HTMLElement;
+
+    try {
+      element.scrollTo({
+        top: element.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    } catch (err) {
+      // Fallback
+      element.scrollTop = element.scrollHeight;
+    }
   }
 
   moodGradient = computed(() => {
@@ -186,6 +273,39 @@ export class GameViewComponent {
     this.quitGame.emit();
   }
 
+  onSave() {
+    this.showSaveModal.set(true);
+  }
+
+  onSaveConfirm() {
+    this.saveGame.emit();
+    this.showSaveModal.set(false);
+  }
+
+  onOverwriteConfirm(slotId: string) {
+    this.overwriteGame.emit(slotId);
+    this.showSaveModal.set(false);
+  }
+
+  onLoad(slotId: string) {
+    this.loadGame.emit(slotId);
+    this.showLoadModal.set(false);
+  }
+
+  onDeleteSave(slotId: string) {
+    this.persistenceService.delete(slotId);
+  }
+
+  formatDate(timestamp: number): string {
+    return new Date(timestamp).toLocaleString('zh-CN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
+
   @HostListener('window:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
     if (this.loading()) return;
@@ -205,5 +325,35 @@ export class GameViewComponent {
         this.handleChoice(scene.options[num - 1]);
       }
     }
+  }
+
+  /**
+   * Extract dialogue content (text inside quotes) from user choice.
+   * Supports Chinese quotes「」and regular quotes ""
+   */
+  extractDialogue(text: string): string {
+    // Match Chinese quotes「...」or "..." or "..."
+    const chineseQuoteMatch = text.match(/「([^」]+)」/);
+    if (chineseQuoteMatch) return chineseQuoteMatch[1];
+
+    const smartQuoteMatch = text.match(/"([^"]+)"/);
+    if (smartQuoteMatch) return smartQuoteMatch[1];
+
+    const regularQuoteMatch = text.match(/"([^"]+)"/);
+    if (regularQuoteMatch) return regularQuoteMatch[1];
+
+    return '';
+  }
+
+  /**
+   * Extract narrative content (text outside quotes) from user choice.
+   */
+  extractNarrative(text: string): string {
+    // Remove dialogue parts (content in quotes including the quotes)
+    return text
+      .replace(/「[^」]+」/g, '')
+      .replace(/"[^"]+"/g, '')
+      .replace(/"[^"]+"/g, '')
+      .trim();
   }
 }
