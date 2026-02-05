@@ -2,40 +2,12 @@ import { Injectable, signal, inject } from '@angular/core';
 import { ApiConfigService } from './api-config.service';
 import { GameScene, GameConfig, GameOption } from './gemini.service';
 import { IAIService } from './ai.interface';
+import { buildSystemPrompt, GAME_SCHEMA_OPENAI } from './prompts';
 
 interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
     content: string;
 }
-
-const GAME_SCHEMA = {
-    type: 'object',
-    properties: {
-        narrative: { type: 'string', description: '环境描写与剧情推进（不含对话内容）' },
-        speakerName: { type: 'string', description: '说话者名字', nullable: true },
-        dialogue: { type: 'string', description: '纯口语文字，只要说的话本身', nullable: true },
-        options: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    label: { type: 'string', description: '简短按钮文本，2-4字' },
-                    action: { type: 'string', description: 'MUST以「我」开头。说话时MUST包含带「」的台词，如：我说道：「...」。NEVER概括性描述说话内容。' }
-                },
-                required: ['label', 'action']
-            },
-            minItems: 3,
-            maxItems: 3
-        },
-        isGameOver: { type: 'boolean' },
-        backgroundMood: { type: 'string', description: '场景氛围关键词' },
-        currencyUnit: { type: 'string', description: '根据世界观设定的货币单位名称', nullable: true },
-        currencyAmount: { type: 'number', description: '主角当前持有的货币数量', nullable: true },
-        currentLocation: { type: 'string', description: '主角当前所处的具体位置', nullable: true },
-        currentTime: { type: 'string', description: '当前位置时间', nullable: true }
-    },
-    required: ['narrative', 'options', 'isGameOver', 'currentLocation', 'currentTime']
-};
 
 @Injectable({
     providedIn: 'root'
@@ -95,7 +67,7 @@ export class OpenAIService implements IAIService {
                 json_schema: {
                     name: 'game_scene',
                     strict: true,
-                    schema: GAME_SCHEMA
+                    schema: GAME_SCHEMA_OPENAI
                 }
             };
         }
@@ -116,8 +88,23 @@ export class OpenAIService implements IAIService {
         return data.choices?.[0]?.message?.content || '';
     }
 
-    async generateWorldSetting(theme: string, simpleSetting: string, style: string): Promise<string> {
-        const prompt = `根据以下信息扩写一个互动小说世界观（100-200字）：
+    async generateWorldSetting(theme: string, simpleSetting: string, style: string, protagonist?: string): Promise<import('./ai.interface').WorldSettingResult> {
+        const needsProtagonist = !protagonist || protagonist.trim() === '';
+
+        const prompt = needsProtagonist
+            ? `根据以下信息生成互动小说世界观和主角代号：
+
+主题：${theme}
+风格：${style}
+初始概念：${simpleSetting || '自由发挥'}
+
+要求：
+1. 世界观（100-200字）：简体中文，有画面感，交代背景/氛围/潜在冲突
+2. 主角代号：根据世界观设定一个符合氛围的主角代号（2-4字）
+
+请严格按以下JSON格式返回：
+{"setting": "世界观描述", "protagonist": "主角代号"}`
+            : `根据以下信息扩写一个互动小说世界观（100-200字）：
 
 主题：${theme}
 风格：${style}
@@ -130,7 +117,27 @@ export class OpenAIService implements IAIService {
         ];
 
         try {
-            return await this.callAPI(messages);
+            const text = await this.callAPI(messages);
+
+            if (needsProtagonist) {
+                // Try to parse JSON response
+                try {
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        const parsed = JSON.parse(jsonMatch[0]);
+                        return {
+                            setting: parsed.setting || text,
+                            protagonist: parsed.protagonist || '旅人'
+                        };
+                    }
+                } catch {
+                    console.warn('Failed to parse JSON response, using fallback');
+                }
+                // Fallback: return text as setting with default protagonist
+                return { setting: text, protagonist: '旅人' };
+            }
+
+            return { setting: text };
         } catch (e: any) {
             console.error('Setting Generation Error', e);
             throw new Error('世界观生成失败: ' + e.message);
@@ -143,57 +150,7 @@ export class OpenAIService implements IAIService {
         this.sceneHistory.set([]);
         this.conversationHistory = [];
 
-        const systemPrompt = `你是互动小说引擎。严格遵守以下规则：
-
-【世界配置】
-主题: ${config.theme} | 设定: ${config.setting} | 主角: ${config.protagonist} | 风格: ${config.style}
-
-【输出规则】
-1. 语言：简体中文
-2. narrative：第二人称"你"视角，描写环境和NPC动作
-3. dialogue：纯对话文字，禁止引号和动作描写
-4. action：第一人称"我"开头
-
-【状态追踪】CRITICAL
-- currencyUnit：开场时根据世界观设定合适的货币单位（如"金币"、"灵石"、"银两"），之后保持一致
-- currencyAmount：主角当前持有的货币数量，开场时给一个合理初始值，交易/获得/消耗时更新
-- currentLocation：始终输出主角当前所处的具体位置
-- currentTime：输出当前时间（如"清晨"、"午后"、"深夜"或具体时辰），每5轮对话约前进1分钟游戏时间，重大场景转换可调整
-
-【NPC称呼】MUST
-- 身份已知后，NEVER用"男人/女人/老者"等泛称
-- ALWAYS用具体身份：码头管理员、老陈、守卫队长
-
-【narrative结构】
-- 可在NPC说完话后继续描写其动作/神态
-- 例："管理员说完，将信号灯别回腰间，目光扫向远处的货船。"
-
-【action规则】CRITICAL
-action要像小说段落，包含动作细节、神态或心理描写。
-- 只有当主角需要说话时才包含「」台词，纯动作无需对话
-- 不要每个选项都包含对话，可以有沉默的行为选择
-× WRONG: "我询问他关于遗迹的事情"（说话了却没有具体台词）
-✓ RIGHT: "我追问道：「这附近有什么值得一看的遗迹吗？」"（说话带台词）
-✓ RIGHT: "我默默转身离开，不愿在这个话题上多做纠缠。"（不说话，纯动作）
-
-【label规则】
-label是按钮文本，需简洁明了（3-6字），让玩家一眼看懂会做什么：
-× WRONG: "询问" "离开" "攻击"（太模糊）
-✓ RIGHT: "追问遗迹线索" "转身离开酒馆" "拔剑迎战"
-
-【NPC认知】
-主角未自我介绍前，NPC不知道主角名字。
-
-【玩家行为处理】CRITICAL
-1. NEVER拒绝玩家的操作选择。如果玩家行为与当前时间/地点逻辑冲突，描述操作后的尴尬或意外后果
-2. 严格遵守世界观设定。如果玩家的行为违反设定（如在无魔法世界施法），以叙事方式引导玩家失败，NEVER脱离设定顺从玩家
-3. 根据当前时间、地点、角色能力评估行为合理性。极端困难的动作应描写失败，或有重大代价的成功
-示例：
-- 玩家想飞但没翅膀 → 描述跳起后狼狈落地
-- 玩家想开锁但无工具 → 描述徒手尝试失败，手指擦伤
-- 凡人单挑巨龙 → 描述被轻易击飞，重伤濒死
-
-必须返回有效的JSON对象。`;
+        const systemPrompt = buildSystemPrompt(config);
 
         this.conversationHistory = [
             { role: 'system', content: systemPrompt }
@@ -226,7 +183,7 @@ label是按钮文本，需简洁明了（3-6字），让玩家一眼看懂会做
         }
     }
 
-    async makeChoice(optionData: GameOption) {
+    async makeChoice(optionData: GameOption, inventoryContext?: import('./ai.interface').InventoryContext) {
         // Record the expanded action text in history
         this.sceneHistory.update(history => {
             if (history.length === 0) return history;
@@ -237,12 +194,70 @@ label是按钮文本，需简洁明了（3-6字），让玩家一眼看懂会做
             return newHistory;
         });
 
+        // Build the message with inventory context
+        let userMessage = `[${optionData.label}] ${optionData.action}`;
+
+        if (inventoryContext) {
+            const contextParts: string[] = [];
+
+            // Always include favorites
+            if (inventoryContext.favorites.length > 0) {
+                contextParts.push(`【收藏物品】${inventoryContext.favorites.join('、')}`);
+            }
+
+            // Include all items if full or has pending discards
+            if (inventoryContext.isFull || (inventoryContext.pendingDiscards && inventoryContext.pendingDiscards.length > 0)) {
+                if (inventoryContext.allItems && inventoryContext.allItems.length > 0) {
+                    contextParts.push(`【全部物品】${inventoryContext.allItems.join('、')}`);
+                }
+            }
+
+            // Include pending discards with special instruction
+            if (inventoryContext.pendingDiscards && inventoryContext.pendingDiscards.length > 0) {
+                contextParts.push(`【玩家请求丢弃】${inventoryContext.pendingDiscards.join('、')} - 请在叙事中描述丢弃过程`);
+            }
+
+            // Warn if inventory is full
+            if (inventoryContext.isFull) {
+                contextParts.push(`【注意】物品栏已满(10/10)，如需给予新物品请在叙事中说明`);
+            }
+
+            if (contextParts.length > 0) {
+                userMessage += '\n\n' + contextParts.join('\n');
+            }
+        }
+
+        await this.processTurn(userMessage);
+    }
+
+    async retryLastAction() {
+        if (this.conversationHistory.length === 0) return;
+
+        // Try to recover the last user message from conversation history if possible
+        // But since we pushed to history only on success in processTurn, we might not have the failed message there.
+        // Wait, current logic updates conversation history ONLY on success.
+        // So for retry, we need to reconstruct the message from the last scene in sceneHistory.
+
+        const history = this.sceneHistory();
+        if (history.length === 0) return;
+
+        const lastScene = history[history.length - 1];
+        if (!lastScene.userChoice) return;
+
+        // Find the label for the user choice from options
+        const options = lastScene.options || [];
+        const matchedOption = options.find(opt => opt.action === lastScene.userChoice);
+        const label = matchedOption ? matchedOption.label : 'Retry';
+
+        const userMessage = `[${label}] ${lastScene.userChoice}`;
+        await this.processTurn(userMessage);
+    }
+
+    private async processTurn(userMessage: string) {
         this.isLoading.set(true);
         this.error.set(null);
 
         try {
-            const userMessage = `[${optionData.label}] ${optionData.action}`;
-
             const messages: ChatMessage[] = [
                 ...this.conversationHistory,
                 { role: 'user', content: userMessage }
@@ -263,7 +278,7 @@ label是按钮文本，需简洁明了（3-6字），让玩家一眼看懂会做
 
         } catch (e: any) {
             console.error('Turn Error', e);
-            this.error.set('时间线发生了断裂，请重试该操作。' + (e.message || ''));
+            this.error.set('Failed to fetch'); // Standardized error message
         } finally {
             this.isLoading.set(false);
         }

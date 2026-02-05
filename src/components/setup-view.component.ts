@@ -306,8 +306,6 @@ export class SetupViewComponent {
   }
 
   onStart() {
-    const pName = this.protagonistName() || '旅人';
-
     // Get style content - if no style selected, use 'Adaptive' for AI to infer
     const styleContent = this.selectedStyle()?.content || 'Adaptive';
 
@@ -315,7 +313,7 @@ export class SetupViewComponent {
       theme: 'AI Generated',
       style: styleContent,
       setting: this.aiPrompt(),
-      protagonist: pName
+      protagonist: this.protagonistName().trim() // 空则由AI生成
     });
   }
 }

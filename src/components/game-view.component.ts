@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { GameScene, GameOption } from '../services/gemini.service';
 import { PersistenceService } from '../services/persistence.service';
+import { InventoryService } from '../services/inventory.service';
 import { SaveSlotMeta } from '../models/save-data.model';
 import { SaveLoadModalComponent } from './save-load-modal.component';
 import { ApiSettingsModalComponent } from './api-settings-modal.component';
@@ -13,6 +14,16 @@ import { ApiSettingsModalComponent } from './api-settings-modal.component';
   imports: [CommonModule, FormsModule, SaveLoadModalComponent, ApiSettingsModalComponent],
   template: `
     <div class="h-full w-full flex flex-col relative overflow-hidden bg-gray-950 text-gray-200" style="font-family: 'Source Han Sans CN', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;">
+      
+      <!-- Error Toast -->
+      @if (error()) {
+        <div class="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
+           <div class="bg-red-500/10 backdrop-blur-md border border-red-500/20 text-red-200 px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm">
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+             {{ error() }}
+           </div>
+        </div>
+      }
       
       <!-- Ambient Background -->
       <div class="absolute inset-0 pointer-events-none opacity-20 transition-colors duration-1000 z-0"
@@ -85,6 +96,74 @@ import { ApiSettingsModalComponent } from './api-settings-modal.component';
             }
           </div>
 
+          <!-- Inventory Panel -->
+          <div class="flex flex-col rounded-xl bg-gray-900/40 backdrop-blur-md border border-white/5 overflow-hidden">
+            <div class="p-4 border-b border-white/5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500">
+                    <path d="M20 8v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8"/>
+                    <rect x="2" y="4" width="20" height="4" rx="1"/>
+                  </svg>
+                  <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">物品栏</span>
+                </div>
+                <span class="text-[10px] text-gray-600 font-mono">{{ inventoryService.items().length }}/{{ inventoryService.MAX_SLOTS }}</span>
+              </div>
+            </div>
+
+            <div class="p-2 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
+              @for (item of inventoryService.items(); track item.id) {
+                <div class="group relative flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                     [class.border-red-500/30]="item.pendingDiscard"
+                     [class.border]="item.pendingDiscard"
+                     [class.bg-red-500/5]="item.pendingDiscard">
+                  @if (item.isFavorite) {
+                    <span class="text-yellow-400 text-xs">★</span>
+                  }
+                  <span class="flex-1 text-xs text-gray-300 truncate"
+                        [class.line-through]="item.pendingDiscard"
+                        [class.text-red-400]="item.pendingDiscard"
+                        [title]="item.description || item.name">{{ item.name }}</span>
+                  
+                  <!-- Hover Actions -->
+                  <div class="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <!-- Favorite Toggle -->
+                    <button 
+                      (click)="onToggleFavorite(item.id)"
+                      class="p-1 rounded hover:bg-white/10 transition-colors"
+                      [class.text-yellow-400]="item.isFavorite"
+                      [class.text-gray-500]="!item.isFavorite"
+                      [title]="item.isFavorite ? '取消收藏' : '收藏 (' + inventoryService.favoriteCount() + '/' + inventoryService.MAX_FAVORITES + ')'"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                      </svg>
+                    </button>
+                    <!-- Discard Toggle -->
+                    <button 
+                      (click)="onToggleDiscard(item.id)"
+                      class="p-1 rounded hover:bg-white/10 transition-colors"
+                      [class.text-red-400]="item.pendingDiscard"
+                      [class.text-gray-500]="!item.pendingDiscard"
+                      [title]="item.pendingDiscard ? '撤销丢弃' : '丢弃'"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              }
+              
+              @if (inventoryService.items().length === 0) {
+                <div class="text-center py-4">
+                  <span class="text-xs text-gray-600">空空如也</span>
+                </div>
+              }
+            </div>
+          </div>
+
         </aside>
 
         <!-- Main History Area -->
@@ -96,37 +175,65 @@ import { ApiSettingsModalComponent } from './api-settings-modal.component';
           
           @for (sceneItem of history(); track $index; let isLast = $last) {
             
-            <div class="scene-item flex flex-col gap-10">
+            <div class="scene-item flex flex-col gap-6 md:gap-8">
               <!-- Narrative / AI Output -->
-              <div class="flex flex-col gap-2 fade-in">
+              <div class="flex flex-col gap-6 fade-in relative px-4 md:px-0">
 
-                <div class="bg-gray-900/60 border border-white/5 rounded-2xl p-8 shadow-xl backdrop-blur-md">
-                  <p class="text-base md:text-lg font-light leading-loose text-gray-300 tracking-wide">
-                    {{ sceneItem.narrative }}
-                  </p>
-                  @if (sceneItem.dialogue) {
-                    <span class="text-[10px] uppercase tracking-[0.3em] font-bold text-indigo-400/60 ml-1 block mt-4">
+                <!-- Narrative Text (Book Style) -->
+                @if (sceneItem.narrative) {
+                  <div class="prose prose-invert max-w-none">
+                    <p class="text-base md:text-lg text-gray-300/90 leading-loose tracking-wide text-justify font-light">
+                      {{ sceneItem.narrative }}
+                    </p>
+                  </div>
+                }
+
+                <!-- Dialogue Block (Distinct Style) -->
+                @if (sceneItem.dialogue) {
+                  <div class="mt-4 pl-6 border-l-2 border-indigo-500/50 relative group">
+                     <!-- Speaker Name -->
+                    <span class="text-[10px] uppercase tracking-[0.25em] font-bold text-indigo-400 mb-2 block font-sans">
                       {{ sceneItem.speakerName || 'The Universe' }}
                     </span>
-                    <p class="text-indigo-200 italic border-l-2 border-indigo-500 pl-4 py-1">
+                    <!-- Spoken Content -->
+                    <p class="text-lg md:text-xl text-white leading-relaxed opacity-95 group-hover:opacity-100 transition-opacity">
                       "{{ sceneItem.dialogue }}"
                     </p>
-                  }
-                </div>
+                  </div>
+                }
               </div>
+
+              <!-- Subtle Divider between turns -->
+              @if (!isLast) {
+                 <div class="w-12 h-px bg-white/5 mx-auto my-4"></div>
+              }
 
               <!-- User Choice Record (If made) -->
               @if (sceneItem.userChoice) {
                 <div class="flex flex-col gap-2 items-end fade-in">
-                  <div class="bg-white/5 border border-white/10 rounded-2xl p-5 max-w-[90%] md:max-w-[80%] text-right">
-                    <p class="text-base font-light text-gray-300">
-                      {{ extractNarrative(sceneItem.userChoice) }}
-                    </p>
-                    @if (extractDialogue(sceneItem.userChoice)) {
-                      <p class="text-pink-200 italic border-r-2 border-pink-500 pr-4 py-1 mt-4 text-right">
-                        "{{ extractDialogue(sceneItem.userChoice) }}"
-                      </p>
+                  <div class="flex items-center gap-3 max-w-[90%] md:max-w-[80%]">
+                    <!-- Retry Button (Only for last item if error exists) -->
+                    @if (isLast && error()) {
+                      <button 
+                        (click)="retry.emit()"
+                        class="p-2 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors border border-red-500/20 animate-pulse"
+                        title="时间线断裂，点击重试"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10l-6 6 6 6"/><path d="M10 20h4a4 4 0 0 0 4-4V10"/><path d="M12 2v2"/><path d="M12 10v2"/><circle cx="12" cy="12" r="1"/><line x1="12" y1="22" x2="12" y2="22"/></svg>
+                        <span class="sr-only">重试</span>
+                      </button>
                     }
+
+                    <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-right flex-1">
+                      <p class="text-base font-light text-gray-300">
+                        {{ extractNarrative(sceneItem.userChoice) }}
+                      </p>
+                      @if (extractDialogue(sceneItem.userChoice)) {
+                        <p class="text-pink-200 border-r-2 border-pink-500 pr-4 py-1 mt-4 text-right">
+                          "{{ extractDialogue(sceneItem.userChoice) }}"
+                        </p>
+                      }
+                    </div>
                   </div>
                 </div>
               }
@@ -251,6 +358,9 @@ import { ApiSettingsModalComponent } from './api-settings-modal.component';
 export class GameViewComponent {
   history = input<GameScene[]>([]);
   loading = input<boolean>(false);
+  error = input<string | null>(null);
+
+  retry = output<void>();
 
   choiceMade = output<string>(); // Emits a simple string for compatibility
   choiceMadeStructured = output<{ label: string, action: string }>(); // Emits structured data to parent
@@ -261,6 +371,7 @@ export class GameViewComponent {
   overwriteGame = output<string>();
 
   persistenceService = inject(PersistenceService);
+  inventoryService = inject(InventoryService);
   showLoadModal = signal(false);
   showSettings = signal(false);
   showSaveModal = signal(false);
@@ -270,14 +381,26 @@ export class GameViewComponent {
   // Track if we should auto-scroll
   private isNearBottom = true;
 
+  @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
+
   activeScene = computed(() => {
     const h = this.history();
     return h.length > 0 ? h[h.length - 1] : null;
   });
 
-  @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
-
   constructor() {
+    // 1. Error toast effect
+    effect(() => {
+      const err = this.error();
+      if (err) {
+        // Auto-close toast logic if we had a local state, 
+        // but for now relying on parent or manual Close isn't implemented.
+        // It's purely visual auto-hide via CSS animation in the template if needed, 
+        // or just stays until next successful action clears it.
+      }
+    });
+
+    // 2. Scroll effect
     effect(() => {
       // Trigger when history changes
       const len = this.history().length;
@@ -288,7 +411,7 @@ export class GameViewComponent {
         if (this.isNearBottom) {
           this.scrollToBottom(false);
         }
-      }, 100);
+      }, 50);
     });
   }
 
@@ -412,6 +535,14 @@ export class GameViewComponent {
 
   onDeleteSave(slotId: string) {
     this.persistenceService.delete(slotId);
+  }
+
+  onToggleFavorite(itemId: string) {
+    this.inventoryService.toggleFavorite(itemId);
+  }
+
+  onToggleDiscard(itemId: string) {
+    this.inventoryService.togglePendingDiscard(itemId);
   }
 
   formatDate(timestamp: number): string {

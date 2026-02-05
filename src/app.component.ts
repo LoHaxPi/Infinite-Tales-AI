@@ -1,9 +1,10 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GeminiService, GameConfig, GameScene } from './services/gemini.service';
 import { OpenAIService } from './services/openai.service';
 import { ApiConfigService } from './services/api-config.service';
 import { PersistenceService } from './services/persistence.service';
+import { InventoryService } from './services/inventory.service';
 import { SaveSlot } from './models/save-data.model';
 import { SetupViewComponent } from './components/setup-view.component';
 import { GameViewComponent } from './components/game-view.component';
@@ -19,6 +20,7 @@ export class AppComponent {
   private openaiService = inject(OpenAIService);
   private apiConfigService = inject(ApiConfigService);
   private persistenceService = inject(PersistenceService);
+  private inventoryService = inject(InventoryService);
 
   // Computed signals that react to provider changes
   sceneHistory = computed<GameScene[]>(() => {
@@ -46,6 +48,38 @@ export class AppComponent {
   gameStarted = false;
   currentConfig: GameConfig | null = null;
 
+  // Track last processed scene index to avoid duplicate processing
+  private lastProcessedSceneIndex = -1;
+
+  constructor() {
+    // Effect to process grantedItems from LLM responses
+    effect(() => {
+      const history = this.sceneHistory();
+      if (history.length === 0) return;
+
+      const latestIndex = history.length - 1;
+      // Only process if this is a new scene
+      if (latestIndex <= this.lastProcessedSceneIndex) return;
+
+      const latestScene = history[latestIndex];
+      if (latestScene.grantedItems && latestScene.grantedItems.length > 0) {
+        for (const itemName of latestScene.grantedItems) {
+          const added = this.inventoryService.addItem(itemName);
+          if (!added) {
+            console.warn('Inventory full, could not add item:', itemName);
+          }
+        }
+      }
+
+      // Also confirm pending discards after LLM response
+      if (this.inventoryService.hasPendingDiscards()) {
+        this.inventoryService.confirmPendingDiscards();
+      }
+
+      this.lastProcessedSceneIndex = latestIndex;
+    });
+  }
+
   private get activeService() {
     return this.apiConfigService.activeProvider() === 'openai-compatible'
       ? this.openaiService
@@ -55,19 +89,31 @@ export class AppComponent {
   onStartGame(config: GameConfig) {
     this.gameStarted = true;
     this.currentConfig = config;
+    this.inventoryService.reset();
+    this.lastProcessedSceneIndex = -1;
     this.activeService.startGame(config);
   }
 
   onPlayerAction(actionData: { label: string, action: string }) {
-    this.activeService.makeChoice(actionData);
+    // Build inventory context
+    const inventoryContext = {
+      favorites: this.inventoryService.getFavoriteNames(),
+      allItems: this.inventoryService.getAllItemNames(),
+      pendingDiscards: this.inventoryService.getPendingDiscardNames(),
+      isFull: this.inventoryService.isFull()
+    };
+
+    this.activeService.makeChoice(actionData, inventoryContext);
   }
 
   onQuit() {
     this.gameStarted = false;
     this.currentConfig = null;
+    this.lastProcessedSceneIndex = -1;
     // Reset both services' history to ensure clean state
     this.geminiService.sceneHistory.set([]);
     this.openaiService.sceneHistory.set([]);
+    this.inventoryService.reset();
   }
 
   async onSaveGame() {
@@ -82,7 +128,8 @@ export class AppComponent {
         provider: this.apiConfigService.activeProvider(),
         gameConfig: this.currentConfig,
         sceneHistory: this.sceneHistory(),
-        chatContext: context
+        chatContext: context,
+        inventory: this.inventoryService.export()
       };
       this.persistenceService.save(slot);
       // Optional: Add toast notification here
@@ -97,16 +144,22 @@ export class AppComponent {
 
     // Switch provider if needed
     if (slot.provider !== this.apiConfigService.activeProvider()) {
-      // NOTE: Ideally we should switch provider here, but that might require UI reflection
-      // For now we just warn or try to proceed if compatible (unlikely)
       console.warn('Loading save from different provider:', slot.provider);
-      // Force switch? Or just let the user know?
       // For simple implementation, let's assume user manually switched or we just try:
       // this.apiConfigService.activeProvider.set(slot.provider); // If writable
     }
 
     this.currentConfig = slot.gameConfig;
     this.activeService.restoreSession(slot.sceneHistory, slot.chatContext, slot.gameConfig);
+
+    // Restore inventory
+    if (slot.inventory) {
+      this.inventoryService.restore(slot.inventory);
+    } else {
+      this.inventoryService.reset();
+    }
+
+    this.lastProcessedSceneIndex = slot.sceneHistory.length - 1;
     this.gameStarted = true;
   }
 
@@ -122,11 +175,21 @@ export class AppComponent {
         provider: this.apiConfigService.activeProvider(),
         gameConfig: this.currentConfig,
         sceneHistory: this.sceneHistory(),
-        chatContext: context
+        chatContext: context,
+        inventory: this.inventoryService.export()
       };
       this.persistenceService.save(slot);
     } catch (err) {
       console.error('Overwrite save failed:', err);
     }
   }
+
+  onRetry() {
+    if (this.activeService.retryLastAction) {
+      this.activeService.retryLastAction();
+    } else {
+      console.warn('Current provider does not support retry');
+    }
+  }
 }
+
