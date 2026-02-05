@@ -3,12 +3,25 @@ import { SaveSlot, SaveSlotMeta } from '../models/save-data.model';
 
 const SAVE_KEY_PREFIX = 'save_';
 
+export class SaveLoadError extends Error {
+    constructor(message: string, public readonly saveId: string, public readonly canDelete = false) {
+        super(message);
+        this.name = 'SaveLoadError';
+    }
+}
+
+export interface CorruptedSaveMeta {
+    id: string;
+    reason: string;
+}
+
 @Injectable({
     providedIn: 'root'
 })
 export class PersistenceService {
     /** 已保存的存档列表（响应式） */
     saveList = signal<SaveSlotMeta[]>([]);
+    corruptedSaveList = signal<CorruptedSaveMeta[]>([]);
 
     constructor() {
         this.refreshList();
@@ -26,15 +39,17 @@ export class PersistenceService {
     /**
      * 读取存档
      */
-    load(id: string): SaveSlot | null {
+    load(id: string): SaveSlot {
         const key = SAVE_KEY_PREFIX + id;
         const data = localStorage.getItem(key);
-        if (!data) return null;
+        if (!data) {
+            throw new SaveLoadError('未找到该存档，请刷新后重试。', id);
+        }
         try {
             return JSON.parse(data) as SaveSlot;
         } catch {
             console.error('Failed to parse save data:', id);
-            return null;
+            throw new SaveLoadError('该存档已损坏，无法读取。请删除后重新保存。', id, true);
         }
     }
 
@@ -52,6 +67,7 @@ export class PersistenceService {
      */
     private refreshList(): void {
         const list: SaveSlotMeta[] = [];
+        const corruptedList: CorruptedSaveMeta[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key?.startsWith(SAVE_KEY_PREFIX)) {
@@ -66,7 +82,10 @@ export class PersistenceService {
                             provider: slot.provider
                         });
                     } catch {
-                        // Skip invalid entries
+                        corruptedList.push({
+                            id: key.replace(SAVE_KEY_PREFIX, ''),
+                            reason: '存档数据格式损坏'
+                        });
                     }
                 }
             }
@@ -74,6 +93,7 @@ export class PersistenceService {
         // 按时间戳降序排序（最新在前）
         list.sort((a, b) => b.timestamp - a.timestamp);
         this.saveList.set(list);
+        this.corruptedSaveList.set(corruptedList);
     }
 
     /**

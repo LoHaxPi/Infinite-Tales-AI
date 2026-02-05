@@ -1,5 +1,5 @@
 import { WritableSignal } from '@angular/core';
-import { GameScene, GameConfig, GameOption } from './gemini.service';
+import { GameScene, GameConfig, GameOption } from '../models/game.model';
 
 /**
  * Inventory context for AI requests

@@ -1,4 +1,4 @@
-import { GameConfig, GameScene } from '../services/gemini.service';
+import { GameConfig, GameScene } from './game.model';
 import { InventoryItem } from './inventory.model';
 
 /**
