@@ -48,35 +48,42 @@ import { ApiSettingsModalComponent } from './api-settings-modal.component';
         <!-- Left Status Sidebar -->
         <aside class="flex-none w-[20%] flex flex-col gap-4 p-6 pr-4 z-30 overflow-y-auto border-r border-white/5 bg-gray-900/10">
           
-          @if (activeScene()?.currentLocation) {
-            <div class="rounded-2xl p-6 bg-gradient-to-br from-indigo-500/40 to-indigo-700/50 border border-indigo-400/30 shadow-lg shadow-indigo-500/10 transition-all hover:scale-[1.02] duration-300">
-              <div class="flex items-center gap-2.5 mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-300"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                <span class="text-xs uppercase tracking-widest text-indigo-200/90 font-semibold">位置</span>
+          <!-- HUD Container -->
+          <div class="flex flex-col rounded-xl bg-gray-900/40 backdrop-blur-md border border-white/5 overflow-hidden">
+            
+            <!-- Location -->
+            @if (activeScene()?.currentLocation) {
+              <div class="p-4 border-b border-white/5 hover:bg-white/5 transition-colors group">
+                <div class="flex items-center gap-2 mb-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500 group-hover:text-indigo-400 transition-colors"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">位置</span>
+                </div>
+                <p class="text-sm text-gray-200 font-medium pl-6 leading-relaxed">{{ activeScene()?.currentLocation }}</p>
               </div>
-              <p class="text-lg text-white font-medium leading-relaxed">{{ activeScene()?.currentLocation }}</p>
-            </div>
-          }
-          
-          @if (activeScene()?.currentTime) {
-            <div class="rounded-2xl p-6 bg-gradient-to-br from-amber-500/35 to-orange-600/45 border border-amber-400/30 shadow-lg shadow-amber-500/10 transition-all hover:scale-[1.02] duration-300">
-              <div class="flex items-center gap-2.5 mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-300"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <span class="text-xs uppercase tracking-widest text-amber-200/90 font-semibold">时间</span>
+            }
+            
+            <!-- Time -->
+            @if (activeScene()?.currentTime) {
+              <div class="p-4 border-b border-white/5 hover:bg-white/5 transition-colors group">
+                <div class="flex items-center gap-2 mb-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500 group-hover:text-amber-400 transition-colors"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">时间</span>
+                </div>
+                <p class="text-sm text-gray-200 font-medium pl-6 leading-relaxed">{{ activeScene()?.currentTime }}</p>
               </div>
-              <p class="text-lg text-white font-medium leading-relaxed">{{ activeScene()?.currentTime }}</p>
-            </div>
-          }
-          
-          @if (activeScene()?.currencyUnit) {
-            <div class="rounded-2xl p-6 bg-gradient-to-br from-yellow-500/35 to-yellow-700/45 border border-yellow-400/30 shadow-lg shadow-yellow-500/10 transition-all hover:scale-[1.02] duration-300">
-              <div class="flex items-center gap-2.5 mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-300"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
-                <span class="text-xs uppercase tracking-widest text-yellow-200/90 font-semibold">{{ activeScene()?.currencyUnit }}</span>
+            }
+            
+            <!-- Currency -->
+            @if (activeScene()?.currencyUnit) {
+              <div class="p-4 hover:bg-white/5 transition-colors group">
+                <div class="flex items-center gap-2 mb-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500 group-hover:text-yellow-400 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+                  <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">{{ activeScene()?.currencyUnit }}</span>
+                </div>
+                <p class="text-xl text-white font-bold pl-6 tracking-tight font-mono">{{ activeScene()?.currencyAmount ?? 0 }}</p>
               </div>
-              <p class="text-3xl text-white font-bold tracking-tight">{{ activeScene()?.currencyAmount ?? 0 }}</p>
-            </div>
-          }
+            }
+          </div>
 
         </aside>
 
