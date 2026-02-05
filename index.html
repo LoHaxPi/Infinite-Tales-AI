@@ -6,19 +6,13 @@
   <title>Infinite Tales AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Custom Scrollbar for a sleek look */
+    /* Hide scrollbar for a sleek look */
     ::-webkit-scrollbar {
-      width: 8px;
+      display: none;
     }
-    ::-webkit-scrollbar-track {
-      background: #1f2937;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #4b5563;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #6b7280;
+    * {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
     .typing-cursor::after {
       content: '|';

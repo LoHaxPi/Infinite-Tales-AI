@@ -5,13 +5,14 @@ import { GameScene, GameOption } from '../services/gemini.service';
 import { PersistenceService } from '../services/persistence.service';
 import { SaveSlotMeta } from '../models/save-data.model';
 import { SaveLoadModalComponent } from './save-load-modal.component';
+import { ApiSettingsModalComponent } from './api-settings-modal.component';
 
 @Component({
   selector: 'app-game-view',
   standalone: true,
-  imports: [CommonModule, FormsModule, SaveLoadModalComponent],
+  imports: [CommonModule, FormsModule, SaveLoadModalComponent, ApiSettingsModalComponent],
   template: `
-    <div class="h-full w-full flex flex-col relative overflow-hidden bg-gray-950 text-gray-200 font-sans">
+    <div class="h-full w-full flex flex-col relative overflow-hidden bg-gray-950 text-gray-200" style="font-family: 'Source Han Sans CN', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;">
       
       <!-- Ambient Background -->
       <div class="absolute inset-0 pointer-events-none opacity-20 transition-colors duration-1000 z-0"
@@ -20,7 +21,6 @@ import { SaveLoadModalComponent } from './save-load-modal.component';
       <!-- Header -->
       <header class="flex-none flex items-center justify-between border-b border-white/5 px-6 py-4 bg-gray-950/80 backdrop-blur-md z-40">
         <div class="flex items-center gap-3">
-          <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
           <h1 class="text-xs font-medium tracking-[0.2em] uppercase text-gray-400">Infinite Tales</h1>
         </div>
         <div class="flex items-center gap-4">
@@ -35,14 +35,56 @@ import { SaveLoadModalComponent } from './save-load-modal.component';
           <button (click)="onQuit()" class="text-xs text-gray-500 hover:text-red-400 transition-colors tracking-widest uppercase">
             结束
           </button>
+          <button (click)="showSettings.set(true)" class="text-xs text-gray-500 hover:text-indigo-400 transition-colors tracking-widest uppercase flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            设置
+          </button>
         </div>
       </header>
 
-      <!-- Main History Area -->
-      <!-- Removed scroll-smooth class to avoid conflict with JS scrollTo -->
-      <main #scrollContainer 
-        (scroll)="checkScrollPosition()"
-        class="flex-1 overflow-y-auto p-6 z-10 custom-scrollbar pb-32">
+      <!-- Main Container with Sidebar -->
+      <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Left Status Sidebar -->
+        <aside class="flex-none w-[20%] flex flex-col gap-4 p-6 pr-4 z-30 overflow-y-auto border-r border-white/5 bg-gray-900/10">
+          
+          @if (activeScene()?.currentLocation) {
+            <div class="rounded-2xl p-6 bg-gradient-to-br from-indigo-500/40 to-indigo-700/50 border border-indigo-400/30 shadow-lg shadow-indigo-500/10 transition-all hover:scale-[1.02] duration-300">
+              <div class="flex items-center gap-2.5 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-300"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span class="text-xs uppercase tracking-widest text-indigo-200/90 font-semibold">位置</span>
+              </div>
+              <p class="text-lg text-white font-medium leading-relaxed">{{ activeScene()?.currentLocation }}</p>
+            </div>
+          }
+          
+          @if (activeScene()?.currentTime) {
+            <div class="rounded-2xl p-6 bg-gradient-to-br from-amber-500/35 to-orange-600/45 border border-amber-400/30 shadow-lg shadow-amber-500/10 transition-all hover:scale-[1.02] duration-300">
+              <div class="flex items-center gap-2.5 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-300"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="text-xs uppercase tracking-widest text-amber-200/90 font-semibold">时间</span>
+              </div>
+              <p class="text-lg text-white font-medium leading-relaxed">{{ activeScene()?.currentTime }}</p>
+            </div>
+          }
+          
+          @if (activeScene()?.currencyUnit) {
+            <div class="rounded-2xl p-6 bg-gradient-to-br from-yellow-500/35 to-yellow-700/45 border border-yellow-400/30 shadow-lg shadow-yellow-500/10 transition-all hover:scale-[1.02] duration-300">
+              <div class="flex items-center gap-2.5 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-300"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+                <span class="text-xs uppercase tracking-widest text-yellow-200/90 font-semibold">{{ activeScene()?.currencyUnit }}</span>
+              </div>
+              <p class="text-3xl text-white font-bold tracking-tight">{{ activeScene()?.currencyAmount ?? 0 }}</p>
+            </div>
+          }
+
+        </aside>
+
+        <!-- Main History Area -->
+        <!-- Removed scroll-smooth class to avoid conflict with JS scrollTo -->
+        <main #scrollContainer 
+          (scroll)="checkScrollPosition()"
+          class="flex-none w-[60%] overflow-y-auto p-8 z-10 custom-scrollbar pb-64 border-r border-white/5">
         <div class="max-w-3xl mx-auto flex flex-col gap-10">
           
           @for (sceneItem of history(); track $index; let isLast = $last) {
@@ -51,8 +93,8 @@ import { SaveLoadModalComponent } from './save-load-modal.component';
               <!-- Narrative / AI Output -->
               <div class="flex flex-col gap-2 fade-in">
 
-                <div class="bg-gray-900/60 border border-white/5 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-                  <p class="text-lg md:text-xl font-light leading-relaxed text-gray-200">
+                <div class="bg-gray-900/60 border border-white/5 rounded-2xl p-8 shadow-xl backdrop-blur-md">
+                  <p class="text-base md:text-lg font-light leading-loose text-gray-300 tracking-wide">
                     {{ sceneItem.narrative }}
                   </p>
                   @if (sceneItem.dialogue) {
@@ -98,6 +140,31 @@ import { SaveLoadModalComponent } from './save-load-modal.component';
         </div>
       </main>
 
+        <!-- Right Sidebar (Notifications) -->
+        <aside class="flex-none w-[20%] p-6 z-30 overflow-hidden flex flex-col gap-4 bg-gray-900/10">
+          
+          @if (notifications().length > 0) {
+             <div class="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 mx-2">
+               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+               <span class="text-[10px] uppercase tracking-widest text-gray-500 font-medium">Recent Updates</span>
+             </div>
+
+             <div class="flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2">
+               @for (note of notifications(); track $index) {
+                 <div class="group relative pl-4 border-l-2 border-white/10 hover:border-indigo-500/50 transition-colors py-1 animate-in slide-in-from-top-2 fade-in duration-500"
+                      [class.border-l-indigo-500]="$index === 0"
+                 >
+                    <h4 class="text-xs font-semibold text-gray-400 group-hover:text-indigo-300 transition-colors mb-0.5">{{ note.title }}</h4>
+                    <p class="text-xs text-gray-500 group-hover:text-gray-400 leading-normal">{{ note.desc }}</p>
+                 </div>
+               }
+             </div>
+          }
+
+        </aside>
+
+      </div>
+
       <!-- Scroll to Bottom Button -->
       <!-- Only show if history has length and we are not near bottom -->
       @if (showScrollButton()) {
@@ -116,8 +183,8 @@ import { SaveLoadModalComponent } from './save-load-modal.component';
            </div>
         </div>
       } @else if (activeScene() && !activeScene()?.isGameOver) {
-        <div class="fixed bottom-0 left-0 w-full z-50 pt-20 pb-8 px-6 bg-gradient-to-t from-gray-950 via-gray-950 to-transparent pointer-events-none">
-          <div class="max-w-2xl mx-auto space-y-3 pointer-events-auto">
+        <div class="fixed bottom-0 left-[20%] w-[60%] z-50 pt-24 pb-10 px-8 bg-gradient-to-t from-gray-950 via-gray-950/95 to-transparent pointer-events-none">
+          <div class="max-w-3xl mx-auto space-y-4 pointer-events-auto">
             
             <!-- Choices List -->
             @for (opt of activeScene()?.options; track $index) {
@@ -164,11 +231,13 @@ import { SaveLoadModalComponent } from './save-load-modal.component';
         <app-save-load-modal mode="save" (close)="showSaveModal.set(false)" (save)="onSaveConfirm()" (overwrite)="onOverwriteConfirm($event)"></app-save-load-modal>
       }
 
-      <!-- Load Modal -->
       @if (showLoadModal()) {
         <app-save-load-modal mode="load" (close)="showLoadModal.set(false)" (load)="onLoad($event)"></app-save-load-modal>
       }
 
+      @if (showSettings()) {
+        <app-api-settings-modal (close)="showSettings.set(false)"></app-api-settings-modal>
+      }
     </div>
   `,
 })
@@ -186,6 +255,7 @@ export class GameViewComponent {
 
   persistenceService = inject(PersistenceService);
   showLoadModal = signal(false);
+  showSettings = signal(false);
   showSaveModal = signal(false);
   customAction = signal('');
   showScrollButton = signal(false);
@@ -251,6 +321,47 @@ export class GameViewComponent {
     const s = this.activeScene();
     if (!s || !s.backgroundMood) return 'radial-gradient(circle at center, #312e81 0%, transparent 70%)';
     return `radial-gradient(circle at top, ${s.backgroundMood} 0%, transparent 60%)`;
+  });
+
+  notifications = computed(() => {
+    const history = this.history();
+    const alerts: { title: string, desc: string, type: 'location' | 'currency' }[] = [];
+
+    // Reverse iterate to show newest first, but we compare i with i-1
+    // Actually user wants newest on top. So we iterate forward and unshift?
+    // Or just iterate normally and reverse at the end.
+    // Let's iterate forward to track state changes, then reverse for display.
+
+    for (let i = 1; i < history.length; i++) {
+      const current = history[i];
+      const prev = history[i - 1];
+
+      // Ensure we are not comparing the same scene due to some re-render issue, though index check prevents this
+
+      // Location Change (Ignore time)
+      if (current.currentLocation && prev.currentLocation && current.currentLocation !== prev.currentLocation) {
+        alerts.push({
+          title: '位置变更',
+          desc: `抵达 ${current.currentLocation}`,
+          type: 'location'
+        });
+      }
+
+      // Currency Change
+      if (current.currencyAmount !== undefined && prev.currencyAmount !== undefined) {
+        const diff = current.currencyAmount - prev.currencyAmount;
+        if (diff !== 0) {
+          const sign = diff > 0 ? '+' : '';
+          alerts.push({
+            title: '资金变动',
+            desc: `${sign}${diff} ${current.currencyUnit || ''}`,
+            type: 'currency'
+          });
+        }
+      }
+    }
+
+    return alerts.reverse(); // Newest (latest history index) on top
   });
 
   handleChoice(option: GameOption) {

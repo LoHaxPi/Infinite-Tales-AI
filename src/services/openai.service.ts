@@ -28,9 +28,13 @@ const GAME_SCHEMA = {
             maxItems: 3
         },
         isGameOver: { type: 'boolean' },
-        backgroundMood: { type: 'string', description: '场景氛围关键词' }
+        backgroundMood: { type: 'string', description: '场景氛围关键词' },
+        currencyUnit: { type: 'string', description: '根据世界观设定的货币单位名称', nullable: true },
+        currencyAmount: { type: 'number', description: '主角当前持有的货币数量', nullable: true },
+        currentLocation: { type: 'string', description: '主角当前所处的具体位置', nullable: true },
+        currentTime: { type: 'string', description: '当前位置时间', nullable: true }
     },
-    required: ['narrative', 'options', 'isGameOver']
+    required: ['narrative', 'options', 'isGameOver', 'currentLocation', 'currentTime']
 };
 
 @Injectable({
@@ -150,6 +154,12 @@ export class OpenAIService implements IAIService {
 3. dialogue：纯对话文字，禁止引号和动作描写
 4. action：第一人称"我"开头
 
+【状态追踪】CRITICAL
+- currencyUnit：开场时根据世界观设定合适的货币单位（如"金币"、"灵石"、"银两"），之后保持一致
+- currencyAmount：主角当前持有的货币数量，开场时给一个合理初始值，交易/获得/消耗时更新
+- currentLocation：始终输出主角当前所处的具体位置
+- currentTime：输出当前时间（如"清晨"、"午后"、"深夜"或具体时辰），每5轮对话约前进1分钟游戏时间，重大场景转换可调整
+
 【NPC称呼】MUST
 - 身份已知后，NEVER用"男人/女人/老者"等泛称
 - ALWAYS用具体身份：码头管理员、老陈、守卫队长
@@ -159,16 +169,29 @@ export class OpenAIService implements IAIService {
 - 例："管理员说完，将信号灯别回腰间，目光扫向远处的货船。"
 
 【action规则】CRITICAL
-action要像小说段落，包含动作细节、神态或心理描写，避免干巴巴的陈述。
-说话时MUST包含带「」的完整台词：
-× WRONG: "我点头，说我是旅人"（太短太干）
-× WRONG: "我询问他关于遗迹的事情"（缺台词）
-✓ RIGHT: "我轻轻颔首，目光掠过他饱经风霜的面庞，语气平和地说道：「我是刚到这里的旅人，初来乍到，还请前辈多多指教。」"
-✓ RIGHT: "我按捺住心中的好奇，故作漫不经心地追问道：「这附近有什么值得一看的遗迹吗？」"
-✓ RIGHT: "我没有答话，只是沉默地点了点头，心中暗自盘算着下一步该怎么走。"
+action要像小说段落，包含动作细节、神态或心理描写。
+- 只有当主角需要说话时才包含「」台词，纯动作无需对话
+- 不要每个选项都包含对话，可以有沉默的行为选择
+× WRONG: "我询问他关于遗迹的事情"（说话了却没有具体台词）
+✓ RIGHT: "我追问道：「这附近有什么值得一看的遗迹吗？」"（说话带台词）
+✓ RIGHT: "我默默转身离开，不愿在这个话题上多做纠缠。"（不说话，纯动作）
+
+【label规则】
+label是按钮文本，需简洁明了（3-6字），让玩家一眼看懂会做什么：
+× WRONG: "询问" "离开" "攻击"（太模糊）
+✓ RIGHT: "追问遗迹线索" "转身离开酒馆" "拔剑迎战"
 
 【NPC认知】
 主角未自我介绍前，NPC不知道主角名字。
+
+【玩家行为处理】CRITICAL
+1. NEVER拒绝玩家的操作选择。如果玩家行为与当前时间/地点逻辑冲突，描述操作后的尴尬或意外后果
+2. 严格遵守世界观设定。如果玩家的行为违反设定（如在无魔法世界施法），以叙事方式引导玩家失败，NEVER脱离设定顺从玩家
+3. 根据当前时间、地点、角色能力评估行为合理性。极端困难的动作应描写失败，或有重大代价的成功
+示例：
+- 玩家想飞但没翅膀 → 描述跳起后狼狈落地
+- 玩家想开锁但无工具 → 描述徒手尝试失败，手指擦伤
+- 凡人单挑巨龙 → 描述被轻易击飞，重伤濒死
 
 必须返回有效的JSON对象。`;
 
