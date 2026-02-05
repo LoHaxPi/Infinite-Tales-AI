@@ -1,7 +1,7 @@
 import { Component, output, signal, inject, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { GameConfig } from '../services/gemini.service';
+import { GameConfig } from '../models/game.model';
 import { ApiConfigService, AIProvider, ModelConfig, HeaderTemplate, StyleTemplate } from '../services/api-config.service';
 import { SaveLoadModalComponent } from './save-load-modal.component';
 import { ApiSettingsModalComponent } from './api-settings-modal.component';

@@ -1,7 +1,7 @@
 import { Component, input, output, signal, computed, effect, ElementRef, ViewChild, HostListener, inject, AfterViewChecked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { GameScene, GameOption } from '../services/gemini.service';
+import { GameScene, GameOption } from '../models/game.model';
 import { PersistenceService } from '../services/persistence.service';
 import { InventoryService } from '../services/inventory.service';
 import { SaveSlotMeta } from '../models/save-data.model';

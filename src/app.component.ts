@@ -1,9 +1,10 @@
-import { Component, inject, computed, effect } from '@angular/core';
+import { Component, inject, computed, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GeminiService, GameConfig, GameScene } from './services/gemini.service';
+import { GeminiService } from './services/gemini.service';
+import { GameConfig, GameScene } from './models/game.model';
 import { OpenAIService } from './services/openai.service';
 import { ApiConfigService } from './services/api-config.service';
-import { PersistenceService } from './services/persistence.service';
+import { PersistenceService, SaveLoadError } from './services/persistence.service';
 import { InventoryService } from './services/inventory.service';
 import { SaveSlot } from './models/save-data.model';
 import { SetupViewComponent } from './components/setup-view.component';
@@ -22,6 +23,8 @@ export class AppComponent {
   private persistenceService = inject(PersistenceService);
   private inventoryService = inject(InventoryService);
 
+  private uiError = signal<string | null>(null);
+
   // Computed signals that react to provider changes
   sceneHistory = computed<GameScene[]>(() => {
     const provider = this.apiConfigService.activeProvider();
@@ -39,9 +42,11 @@ export class AppComponent {
 
   error = computed<string | null>(() => {
     const provider = this.apiConfigService.activeProvider();
-    return provider === 'openai-compatible'
+    const serviceError = provider === 'openai-compatible'
       ? this.openaiService.error()
       : this.geminiService.error();
+
+    return this.uiError() ?? serviceError;
   });
 
   // Simple local state to switch views
@@ -86,7 +91,12 @@ export class AppComponent {
       : this.geminiService;
   }
 
+  private setUiError(message: string | null) {
+    this.uiError.set(message);
+  }
+
   onStartGame(config: GameConfig) {
+    this.setUiError(null);
     this.gameStarted = true;
     this.currentConfig = config;
     this.inventoryService.reset();
@@ -107,6 +117,7 @@ export class AppComponent {
   }
 
   onQuit() {
+    this.setUiError(null);
     this.gameStarted = false;
     this.currentConfig = null;
     this.lastProcessedSceneIndex = -1;
@@ -120,6 +131,7 @@ export class AppComponent {
     if (!this.currentConfig) return;
 
     try {
+      this.setUiError(null);
       const context = await this.activeService.getContext();
       const slot: SaveSlot = {
         id: crypto.randomUUID(),
@@ -135,38 +147,51 @@ export class AppComponent {
       // Optional: Add toast notification here
     } catch (err) {
       console.error('Save failed:', err);
+      this.setUiError('保存失败，请稍后重试。');
     }
   }
 
   onLoadGame(slotId: string) {
-    const slot = this.persistenceService.load(slotId);
-    if (!slot) return;
+    this.setUiError(null);
 
-    // Switch provider if needed
-    if (slot.provider !== this.apiConfigService.activeProvider()) {
-      console.warn('Loading save from different provider:', slot.provider);
-      // For simple implementation, let's assume user manually switched or we just try:
-      // this.apiConfigService.activeProvider.set(slot.provider); // If writable
+    try {
+      const slot = this.persistenceService.load(slotId);
+
+      // Switch provider if needed
+      if (slot.provider !== this.apiConfigService.activeProvider()) {
+        this.apiConfigService.setProvider(slot.provider);
+      }
+
+      const service = slot.provider === 'openai-compatible' ? this.openaiService : this.geminiService;
+
+      this.currentConfig = slot.gameConfig;
+      service.restoreSession(slot.sceneHistory, slot.chatContext, slot.gameConfig);
+
+      // Restore inventory
+      if (slot.inventory) {
+        this.inventoryService.restore(slot.inventory);
+      } else {
+        this.inventoryService.reset();
+      }
+
+      this.lastProcessedSceneIndex = slot.sceneHistory.length - 1;
+      this.gameStarted = true;
+    } catch (err) {
+      if (err instanceof SaveLoadError) {
+        this.setUiError(err.message);
+        return;
+      }
+
+      console.error('Load failed:', err);
+      this.setUiError('读取存档失败，请稍后重试。');
     }
-
-    this.currentConfig = slot.gameConfig;
-    this.activeService.restoreSession(slot.sceneHistory, slot.chatContext, slot.gameConfig);
-
-    // Restore inventory
-    if (slot.inventory) {
-      this.inventoryService.restore(slot.inventory);
-    } else {
-      this.inventoryService.reset();
-    }
-
-    this.lastProcessedSceneIndex = slot.sceneHistory.length - 1;
-    this.gameStarted = true;
   }
 
   async onOverwriteGame(slotId: string) {
     if (!this.currentConfig) return;
 
     try {
+      this.setUiError(null);
       const context = await this.activeService.getContext();
       const slot: SaveSlot = {
         id: slotId, // Reuse the existing slot ID
@@ -181,6 +206,7 @@ export class AppComponent {
       this.persistenceService.save(slot);
     } catch (err) {
       console.error('Overwrite save failed:', err);
+      this.setUiError('覆盖存档失败，请稍后重试。');
     }
   }
 
@@ -192,4 +218,3 @@ export class AppComponent {
     }
   }
 }
-

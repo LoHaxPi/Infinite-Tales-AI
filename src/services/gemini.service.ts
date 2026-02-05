@@ -3,33 +3,7 @@ import { GoogleGenAI, Type, Chat, HarmCategory, HarmBlockThreshold, ThinkingLeve
 import { ApiConfigService } from './api-config.service';
 import { IAIService } from './ai.interface';
 import { buildSystemPrompt, buildGeminiResponseSchema } from './prompts';
-
-export interface GameOption {
-  label: string; // The text on the button (e.g., "Nod")
-  action: string; // The expanded text shown in history (e.g., "You nod silently and approach him.")
-}
-
-export interface GameScene {
-  narrative: string;
-  speakerName?: string;
-  dialogue?: string;
-  options: GameOption[]; // Updated to allow structured options
-  isGameOver: boolean;
-  backgroundMood?: string;
-  userChoice?: string; // Stores the expanded 'action' text
-  currencyUnit?: string; // 货币单位（如"金币"、"灵石"）
-  currencyAmount?: number; // 货币数量
-  currentLocation?: string; // 主角当前位置
-  currentTime?: string; // 当前位置时间
-  grantedItems?: string[]; // LLM赠送的新物品名称列表
-}
-
-export interface GameConfig {
-  theme: string;
-  setting: string;
-  protagonist: string;
-  style: string;
-}
+import { GameConfig, GameScene } from '../models/game.model';
 
 @Injectable({
   providedIn: 'root'

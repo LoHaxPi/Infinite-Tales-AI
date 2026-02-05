@@ -1,6 +1,6 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { ApiConfigService } from './api-config.service';
-import { GameScene, GameConfig, GameOption } from './gemini.service';
+import { GameScene, GameConfig, GameOption } from '../models/game.model';
 import { IAIService } from './ai.interface';
 import { buildSystemPrompt, GAME_SCHEMA_OPENAI } from './prompts';
 

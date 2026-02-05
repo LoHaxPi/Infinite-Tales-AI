@@ -1,4 +1,4 @@
-import { GameConfig } from './gemini.service';
+import { GameConfig } from '../models/game.model';
 
 /**
  * 生成互动小说引擎的系统指令
